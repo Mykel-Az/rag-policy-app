@@ -1,10 +1,3 @@
-"""
-Streamlit chat UI. This is a thin client only — all RAG logic lives in the
-FastAPI backend (backend/main.py). This app just calls /chat over HTTP.
-
-Run locally (with the backend already running on :8000):
-    streamlit run frontend/streamlit_app.py
-"""
 import os
 import requests
 import streamlit as st

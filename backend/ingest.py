@@ -21,8 +21,6 @@ def load_documents():
     )
     documents = loader.load()
 
-    # TextLoader stores the full file path in metadata["source"]; normalize
-    # to just the filename so citations are clean and portable across machines.
     for doc in documents:
         doc.metadata["source"] = Path(doc.metadata["source"]).name
 
@@ -76,8 +74,6 @@ def build_vectorstore(chunks):
         collection_name=config.COLLECTION_NAME,
         embedding_function=embeddings,
     )
-    # Reset any existing collection so re-running ingestion doesn't
-    # accumulate duplicate chunks with each run.
     vectorstore.delete_collection()
 
     vectorstore = Chroma.from_documents(

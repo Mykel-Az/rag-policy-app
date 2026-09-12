@@ -9,7 +9,7 @@ Measures (per project rubric):
 Run with:
     python -m eval.run_eval
 """
-import json
+import json, re
 import statistics
 from pathlib import Path
 
@@ -33,28 +33,35 @@ def judge_groundedness(question: str, answer: str, chunks: list) -> bool:
     """
     context = "\n\n".join(c.page_content for c in chunks)
     prompt = f"""You are a strict evaluator. Given the CONTEXT and ANSWER below,
-respond with exactly one word: "YES" if every factual claim in the ANSWER is
-supported by the CONTEXT, or "NO" if the ANSWER contains any claim not present
-in or contradicted by the CONTEXT.
+determine whether every factual claim in the ANSWER is supported by the
+CONTEXT. You may reason briefly, but you MUST end your response with exactly
+one line in this exact format, and nothing after it:
+
+Final verdict: YES
+or
+Final verdict: NO
 
 CONTEXT:
 {context}
 
 ANSWER:
-{answer}
-
-Verdict (YES or NO):"""
+{answer}"""
 
     judge = ChatGroq(
         model=config.GROQ_JUDGE_MODEL,
         api_key=config.GROQ_API_KEY,
-        max_tokens=5,
+        max_tokens=500,
         temperature=0,
     )
     response = judge.invoke(prompt)
-    verdict = response.content.strip().upper()
-    print(f"[Judge raw] {response.content!r}")
-    return verdict.startswith("YES")
+    content = response.content.strip()
+
+    match = re.search(r"final verdict:\s*(yes|no)", content, re.IGNORECASE)
+    if match is None:
+        print(f"  [judge warning] no parseable verdict, raw: {content[:200]!r}")
+        return False  # fail closed: treat unparseable judgments as ungrounded
+
+    return match.group(1).lower() == "yes"
 
 
 def citation_correct(expected_source, answer: str, citations: list) -> bool:
@@ -83,7 +90,12 @@ def run_eval():
         chunks = retriever.invoke(q["question"])
         result = rag_chain.answer_question(q["question"])
 
-        grounded = judge_groundedness(q["question"], result["answer"], chunks)
+        is_refusal = result["answer"].strip() == config.OUT_OF_SCOPE_MESSAGE
+        if is_refusal:
+            grounded = True
+        else:
+            grounded = judge_groundedness(q["question"], result["answer"], chunks)
+
         cited_ok = citation_correct(
             q["expected_source"], result["answer"], result["citations"]
         )

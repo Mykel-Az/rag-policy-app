@@ -1,15 +1,3 @@
-"""
-FastAPI backend for the RAG policy assistant.
-
-Run locally with:
-    uvicorn backend.main:app --reload --port 8000
-
-Endpoints:
-    GET  /        -> basic info
-    POST /chat    -> {"question": "..."} -> answer + citations + latency
-    GET  /health  -> {"status": "ok"}
-"""
-
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -22,22 +10,18 @@ from backend import rag_chain
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
-    # Startup: pay the ~15s embedding-model cold-start cost once, here,
-    # instead of on the first user's request.
     print("Warming up retriever and LLM...")
     rag_chain.get_retriever()
     rag_chain.get_llm()
     print("Warm-up complete.")
     yield
-    # Shutdown: nothing to clean up currently.
 
 
 app = FastAPI(title="Policy RAG API", version="1.0.0", lifespan=lifespan)
 
-# Allow the Streamlit frontend (running on a different port) to call this API.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten to your frontend's exact origin in production
+    allow_origins=["*"],  
     allow_methods=["*"],
     allow_headers=["*"],
 )

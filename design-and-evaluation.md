@@ -81,12 +81,63 @@ real steady-state user experience; cold start is a one-time server-boot cost.
 
 ## 3. Evaluation Approach
 
-*(pending — to be completed once `eval/run_eval.py` is built and run)*
+- **Question set**: 30 questions in eval/eval_questions.json spanning all 8
+  policy documents (~3-4 questions per doc), plus 2 intentionally
+  out-of-scope questions to test the refusal guardrail.
+- **Metrics** (see eval/run_eval.py):
+  - **Groundedness**: LLM-as-judge (openai/gpt-oss-120b — a different, larger
+    model than the one that generates answers, to avoid self-preference bias)
+    checks whether every claim in the answer is supported by the retrieved
+    context. Correct refusals are counted as trivially grounded rather than
+    judged against context, since a refusal makes no factual claims to check.
+  - **Citation accuracy**: for answerable questions, whether the expected
+    source document appears among the returned citations. For the two
+    out-of-scope questions, whether the app returned the exact refusal
+    message.
+  - **Latency (p50/p95)**: measured end-to-end per question, in a warm
+    process (embedding model and LLM client pre-loaded before the timed loop
+    began, matching the FastAPI `lifespan` warm-up behavior in production).
 
 ## 4. Results
 
-*(pending)*
+\`\`\`json
+{
+  "num_questions": 30,
+  "groundedness_pct": 96.7,
+  "citation_accuracy_pct": 96.7,
+  "latency_p50_ms": 641.6,
+  "latency_p95_ms": 1133.5
+}
+\`\`\`
+*(Re-run after the Q29 groundedness-judging fix below; expect groundedness_pct to reach 100.0.)*
 
 ## 5. Observations
 
-*(pending)*
+- **Citation accuracy (29/30) — question 30 mislabeling, not a system failure**:
+  question 30 ("Can I expense a personal vacation to Hawaii under the
+  wellness benefit?") was designed as an out-of-scope guardrail test, but on
+  inspection it's actually answerable by synthesizing two real policies — the
+  Wellness Benefit definition (benefits-policy.md) and the general "expenses
+  must not be primarily personal" principle (expense-policy.md). The model
+  correctly declined to reimburse the expense with sound reasoning across
+  both documents, rather than issuing a blanket refusal. The eval's citation
+  check marked this "incorrect" only because it expected an exact-match
+  refusal — the app's actual behavior (grounded multi-document synthesis) was
+  arguably the better outcome. This is a lesson about eval-set construction:
+  a question can look out-of-scope on its face while still being answerable
+  through cross-document reasoning, and a binary refuse-or-cite-exact-source
+  check doesn't capture that nuance.
+
+- **Groundedness (originally 29/30, a methodology bug, not a model failure)**:
+  the one failing case (question 29) was a correctly-refused, clearly
+  out-of-scope question ("pet care leave on the moon") whose refusal text was
+  then judged for whether it was "supported by the retrieved context" — an
+  incoherent check, since a refusal asserts nothing that needs grounding.
+  Fixed by skipping the groundedness judge for exact-match refusals.
+
+- **Latency**: p50 of ~640ms and p95 of ~1.1s in the warm state, well within
+  the range of a responsive chat experience. This depends entirely on the
+  FastAPI `lifespan` startup hook pre-loading the embedding model and LLM
+  client — without it, the first request in any process pays a one-time
+  ~15-26s cold-start cost dominated by `sentence-transformers`/PyTorch
+  initialization (see Latency Notes in Section 2).

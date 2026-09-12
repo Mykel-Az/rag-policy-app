@@ -11,7 +11,6 @@ from backend.main import app
 
 @pytest.fixture
 def client(monkeypatch):
-    # Stub out the expensive/real calls the lifespan startup would otherwise make.
     monkeypatch.setattr(rag_chain, "get_retriever", lambda: None)
     monkeypatch.setattr(rag_chain, "get_llm", lambda: None)
 
@@ -32,9 +31,8 @@ def test_health(client):
 
 def test_chat_rejects_empty_question(client):
     resp = client.post("/chat", json={"question": ""})
-    assert resp.status_code == 422  # Pydantic min_length=1 validation error
-
+    assert resp.status_code == 422  
 
 def test_chat_requires_question_field(client):
     resp = client.post("/chat", json={})
-    assert resp.status_code == 422  # missing required field
+    assert resp.status_code == 422
