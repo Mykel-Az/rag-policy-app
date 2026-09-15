@@ -6,7 +6,7 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="Policy Assistant", page_icon="📄")
 st.title("📄 Company Policy Assistant")
-st.caption(f"Backend: {BACKEND_URL}")
+st.caption("Answers are grounded in company policy documents, with sources cited for every response.")
 
 if "history" not in st.session_state:
     st.session_state.history = []
