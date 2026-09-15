@@ -23,10 +23,12 @@ services:
       dockerfile: frontend/Dockerfile
     environment:
       - BACKEND_URL=http://backend:8000
+    expose:
+      - "8501"
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
-    
+
 volumes:
   vectorstore_data:
